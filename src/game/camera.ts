@@ -13,12 +13,14 @@ export class Camera {
   angle = 0;
 
   // Perspective parameters (world units / fractional pixels):
-  readonly chase = 70;           // chase distance behind the car
-  readonly height = 64;          // camera height off the ground
-  readonly nearPlane = 6;
+  readonly chase = 80;           // chase distance behind the car
+  readonly height = 58;          // camera height off the ground
+  // Near plane sits a hair forward of the chase distance so the road
+  // doesn't render past the car (otherwise the quad fills to off-screen-bottom).
+  readonly nearPlane = 65;
   readonly farPlane = 900;       // bounds the visible road; tunes how far ahead curves reveal
-  readonly horizonFrac = 0.42;   // horizon at this fraction of screen height
-  readonly focalFrac = 0.62;     // focal length as fraction of screen width
+  readonly horizonFrac = 0.45;   // horizon at this fraction of screen height
+  readonly focalFrac = 0.7;      // focal length as fraction of screen width
 
   update(dt: number, car: Car) {
     // Position the camera chase-dist behind the car along its heading.

@@ -60,15 +60,17 @@ export class Renderer {
     const focal = this.w * cam.focalFrac;
     const horizonY = this.h * cam.horizonFrac;
     const cx = this.w / 2;
-    const cosA = Math.cos(-cam.angle);
-    const sinA = Math.sin(-cam.angle);
+    // Camera's forward axis in world coords (canvas, y-down):
+    //   f = (cos θ, sin θ)        rightward = (-sin θ, cos θ)
+    // Change-of-basis: local lateral = dot(delta, right), local forward = dot(delta, f).
+    const cs = Math.cos(cam.angle);
+    const sn = Math.sin(cam.angle);
 
     const project = (wx: number, wy: number): Projected | null => {
       const dx = wx - cam.x;
       const dy = wy - cam.y;
-      const lx = dx * cosA - dy * sinA;
-      const ly = dx * sinA + dy * cosA;
-      const depth = -ly; // forward distance ahead of camera
+      const lx = -dx * sn + dy * cs; // lateral (positive = camera's right)
+      const depth = dx * cs + dy * sn; // forward distance ahead of camera
       if (depth < cam.nearPlane || depth > cam.farPlane) return null;
       const sx = cx + (lx * focal) / depth;
       const sy = horizonY + (cam.height * focal) / depth;
@@ -198,7 +200,7 @@ export class Renderer {
       // car heading matches camera angle. So rotate -PI/2 + (heading - angle).
       const yaw = car.heading - cam.angle;
       c.rotate(yaw - Math.PI / 2);
-      const carScale = carP.scale * 0.65;
+      const carScale = carP.scale * 0.4;
       c.scale(carScale, carScale);
       drawCarSprite(c, 0, 0, 0, skin as CarSkin);
       c.restore();
