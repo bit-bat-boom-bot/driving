@@ -1,6 +1,9 @@
 node_modules/
 dist/
 tsconfig.tsbuildinfo
+# Defensive: tsc shouldn't emit (noEmit is set) but if a future config does
+# emit, keep the build output out of source.
+src/**/*.js
 .DS_Store
 *.log
 .env
