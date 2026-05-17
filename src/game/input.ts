@@ -21,7 +21,7 @@ export class SwipeInput {
       target.setPointerCapture(e.pointerId);
       this.active = true;
       this.originX = e.clientX;
-      this.fullLockPx = Math.max(80, Math.min(180, window.innerWidth * 0.18));
+      this.fullLockPx = Math.max(140, Math.min(260, window.innerWidth * 0.32));
       this.touchedAt = performance.now();
       this.movedDist = 0;
     });

@@ -81,6 +81,10 @@ export class Game {
     this.car.x = start.x;
     this.car.y = start.y;
     this.car.heading = Math.atan2(start.ty, start.tx);
+    // Snap camera into chase position so the first frame is already correct.
+    this.camera.angle = this.car.heading;
+    this.camera.x = this.car.x - Math.cos(this.car.heading) * this.camera.chase;
+    this.camera.y = this.car.y - Math.sin(this.car.heading) * this.camera.chase;
     this.runBolts = 0;
     this.runIngredients = blankIng();
     this.runDistance = 0;
@@ -146,11 +150,29 @@ export class Game {
       }
     }
 
-    this.camera.update(dt, this.car, { tx: cp.tx, ty: cp.ty });
+    this.camera.update(dt, this.car);
     this.runDistance = this.world.distanceAlong(this.car.x, this.car.y);
 
+    // obstacle collision: convert each log's world-space center into the
+    // car's local frame so the box check is along/across the road, not axis-aligned.
+    for (const chunk of this.world.chunks) {
+      for (const o of chunk.obstacles) {
+        const dx = o.x - this.car.x;
+        const dy = o.y - this.car.y;
+        const ch = Math.cos(this.car.heading), sh = Math.sin(this.car.heading);
+        const along = dx * ch + dy * sh;
+        const across = -dx * sh + dy * ch;
+        // Inflate by car half-extents (~13 long, ~10 wide).
+        if (Math.abs(along) < o.halfLength + 13 && Math.abs(across) < o.halfWidth + 10) {
+          this.endRun('hit-log');
+          break;
+        }
+      }
+      if (this.scene !== 'playing') break;
+    }
+
     // die condition: too far off road for too long
-    if (this.offRoadFor > 1.6) this.endRun('crashed');
+    if (this.scene === 'playing' && this.offRoadFor > 1.6) this.endRun('crashed');
   }
 
   private collect(kind: PickupKind) {

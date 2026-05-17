@@ -25,7 +25,7 @@ export class Hud {
     const x = w - 16;
     c.textAlign = 'right';
     c.fillStyle = PICKUP_COLORS.bolt;
-    c.fillText(`${this.game.runBolts} ⚙`, x, y);
+    c.fillText(`${this.game.runBolts} 🦆`, x, y);
     y += 26;
     c.font = '500 14px system-ui, sans-serif';
     for (const k of ['neon', 'chrome', 'glitter', 'ember', 'prism'] as const) {

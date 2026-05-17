@@ -4,6 +4,7 @@
 
 import { rng, RNG } from './rng';
 import { Pickup, spawnPickupsForChunk } from './pickups';
+import { Obstacle, spawnObstaclesForChunk } from './obstacles';
 
 export const ROAD_HALF_WIDTH = 140;
 export const CHUNK_LEN = 600;     // distance along road per chunk
@@ -19,6 +20,7 @@ export interface Chunk {
   id: number;
   samples: ChunkSample[]; // length CHUNK_SAMPLES+1; index 0 = previous chunk's last
   pickups: Pickup[];
+  obstacles: Obstacle[];
 }
 
 export class World {
@@ -76,9 +78,10 @@ export class World {
       this.headY += Math.sin(this.headHeading) * stepLen;
       samples.push(this.makeSample(this.headX, this.headY, this.headHeading));
     }
-    const chunk: Chunk = { id: this.nextId++, samples, pickups: [] };
+    const chunk: Chunk = { id: this.nextId++, samples, pickups: [], obstacles: [] };
     // First couple chunks are pickup-free so the player can settle in.
     if (chunk.id >= 2) spawnPickupsForChunk(chunk, this.rng);
+    spawnObstaclesForChunk(chunk, this.rng);
     this.chunks.push(chunk);
   }
 

@@ -55,7 +55,7 @@ export class GameOverScreen {
     // earned line
     c.font = '600 18px system-ui, sans-serif';
     c.fillStyle = PICKUP_COLORS.bolt;
-    c.fillText(`+${this.game.runBolts} bolts`, cx, y);
+    c.fillText(`+${this.game.runBolts} ducks`, cx, y);
     y += 24;
     const earnedIng: string[] = [];
     for (const k of ['neon', 'chrome', 'glitter', 'ember', 'prism'] as IngredientKind[]) {

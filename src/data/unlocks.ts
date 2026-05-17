@@ -13,7 +13,7 @@ export interface UnlockDef {
 
 export const UNLOCKS: UnlockDef[] = [
   { skin: 'racer',   name: 'Racer',   hint: 'Drive 5,000m in one run',         check: (s) => s.bestDistance >= 5000 },
-  { skin: 'truck',   name: 'Hauler',  hint: 'Earn 1,000 bolts total',          check: (s) => s.lifetimeBolts >= 1000 },
+  { skin: 'truck',   name: 'Hauler',  hint: 'Earn 1,000 ducks total',          check: (s) => s.lifetimeBolts >= 1000 },
   { skin: 'cop',     name: 'Patrol',  hint: 'Survive 25 runs',                 check: (s) => s.runs >= 25 },
   { skin: 'taxi',    name: 'Cabbie',  hint: 'Drive 25,000m total',             check: (s) => s.totalDistance >= 25000 },
   { skin: 'ufo',     name: 'Visitor', hint: 'Collect 3 prism crystals',        check: (s) => (s.ingredients.prism ?? 0) >= 3 },

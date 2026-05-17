@@ -41,7 +41,7 @@ export class UpgradeScreen {
     c.textAlign = 'left';
     let wx = 24, wy = 84;
     c.fillStyle = PICKUP_COLORS.bolt;
-    c.fillText(`${this.game.save.bolts} ⚙`, wx, wy);
+    c.fillText(`${this.game.save.bolts} ducks`, wx, wy);
     wx += 80;
     for (const k of ['neon', 'chrome', 'glitter', 'ember', 'prism'] as IngredientKind[]) {
       const n = this.game.save.ingredients[k];
@@ -122,7 +122,7 @@ export class UpgradeScreen {
       const c2 = u.cost(lvl);
       c.font = '600 12px system-ui, sans-serif';
       c.fillStyle = PICKUP_COLORS.bolt;
-      const costText = `${c2.bolts} ⚙`;
+      const costText = `${c2.bolts} ducks`;
       c.textAlign = 'right';
       c.fillText(costText, x + w - 12, y + 22);
       if (c2.ing) {

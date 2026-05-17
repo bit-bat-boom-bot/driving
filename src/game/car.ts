@@ -13,8 +13,8 @@ export interface CarStats {
 export const BASE_STATS: CarStats = {
   topSpeed: 360,
   accel: 220,
-  turnRate: 2.6,
-  grip: 3.2,
+  turnRate: 1.55,
+  grip: 3.6,
   drag: 0.18,
 };
 
@@ -26,8 +26,9 @@ export class Car {
   latSpeed = 0;
   alive = true;
 
-  // -1..1 player steering input
+  // -1..1 player steering input (raw); smoothed internally to filteredSteer
   steer = 0;
+  private filteredSteer = 0;
   // 0..1 throttle multiplier (1 = always accelerating). Reduced if off-road.
   throttleMul = 1;
 
@@ -45,14 +46,17 @@ export class Car {
       if (this.fwdSpeed > this.stats.topSpeed) this.fwdSpeed = this.stats.topSpeed;
       if (this.fwdSpeed < 0) this.fwdSpeed = 0;
 
-      // steering scales with speed (no zero-speed pivots, more bite mid-range)
-      const speedFactor = Math.min(1, this.fwdSpeed / (this.stats.topSpeed * 0.55));
-      const steerInput = clamp(this.steer, -1, 1);
-      this.heading += steerInput * this.stats.turnRate * speedFactor * dt;
+      // Low-pass the raw input so taps don't whip the car. ~120ms time constant.
+      const steerK = 1 - Math.exp(-8 * dt);
+      this.filteredSteer += (clamp(this.steer, -1, 1) - this.filteredSteer) * steerK;
 
-      // steering induces lateral slip proportional to speed
-      const slipGain = 0.55;
-      this.latSpeed += steerInput * this.fwdSpeed * slipGain * dt;
+      // Steering scales with speed (no zero-speed pivots, more bite mid-range).
+      const speedFactor = Math.min(1, this.fwdSpeed / (this.stats.topSpeed * 0.55));
+      this.heading += this.filteredSteer * this.stats.turnRate * speedFactor * dt;
+
+      // Steering induces lateral slip proportional to speed.
+      const slipGain = 0.32;
+      this.latSpeed += this.filteredSteer * this.fwdSpeed * slipGain * dt;
     }
 
     // grip kills lateral velocity over time

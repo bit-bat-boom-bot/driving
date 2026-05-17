@@ -1,9 +1,25 @@
+// Pseudo-3D renderer. The world is still tracked in 2D (x,y); each point is
+// projected through the chase camera to give a tilted-perspective view.
+//
+// Projection: rotate world->camera so the camera's forward vector points
+// along screen-up. In camera-local space, lateral = lx, forward-depth = -ly.
+// Screen position: cx + (lx/depth) * focal, horizonY + (camHeight/depth) * focal.
+// Far-away things compress toward the horizon, which is exactly why distant
+// road curves and obstacles "emerge" only as the car closes in.
+
 import type { World } from './world';
 import type { Car } from './car';
 import type { Camera } from './camera';
 import { ROAD_HALF_WIDTH } from './world';
-import { PICKUP_COLORS, PICKUP_RADIUS } from './pickups';
 import { drawCarSprite, CarSkin } from './carsprites';
+import { getDuckSprite, getLogSprite } from './sprites';
+
+interface Projected {
+  x: number;
+  y: number;
+  scale: number;
+  depth: number;
+}
 
 export class Renderer {
   w = 0;
@@ -21,117 +37,219 @@ export class Renderer {
   beginFrame() {
     const c = this.ctx;
     c.setTransform(1, 0, 0, 1, 0, 0);
-    // sky/ground background
-    const g = c.createLinearGradient(0, 0, 0, this.h);
-    g.addColorStop(0, '#0a0e14');
-    g.addColorStop(1, '#11202b');
-    c.fillStyle = g;
-    c.fillRect(0, 0, this.w, this.h);
+    const horizonY = this.h * 0.42;
+    // Sky
+    const sky = c.createLinearGradient(0, 0, 0, horizonY);
+    sky.addColorStop(0, '#1d2a3a');
+    sky.addColorStop(1, '#3b556e');
+    c.fillStyle = sky;
+    c.fillRect(0, 0, this.w, horizonY);
+    // Ground / distant grass
+    const ground = c.createLinearGradient(0, horizonY, 0, this.h);
+    ground.addColorStop(0, '#1f3a22');
+    ground.addColorStop(1, '#0e1c10');
+    c.fillStyle = ground;
+    c.fillRect(0, horizonY, this.w, this.h - horizonY);
+    // Distant haze on the horizon line
+    c.fillStyle = 'rgba(180, 200, 220, 0.10)';
+    c.fillRect(0, horizonY - 2, this.w, 4);
   }
 
   drawWorld(world: World, car: Car, cam: Camera, skin: string) {
     const c = this.ctx;
+    const focal = this.w * cam.focalFrac;
+    const horizonY = this.h * cam.horizonFrac;
     const cx = this.w / 2;
-    const cy = this.h * 0.62;
-    const scale = this.dpr * 1.05;
+    const cosA = Math.cos(-cam.angle);
+    const sinA = Math.sin(-cam.angle);
 
-    c.save();
-    c.translate(cx, cy);
-    c.scale(scale, scale);
-    c.rotate(-cam.angle);
-    c.translate(-cam.x, -cam.y);
+    const project = (wx: number, wy: number): Projected | null => {
+      const dx = wx - cam.x;
+      const dy = wy - cam.y;
+      const lx = dx * cosA - dy * sinA;
+      const ly = dx * sinA + dy * cosA;
+      const depth = -ly; // forward distance ahead of camera
+      if (depth < cam.nearPlane || depth > cam.farPlane) return null;
+      const sx = cx + (lx * focal) / depth;
+      const sy = horizonY + (cam.height * focal) / depth;
+      return { x: sx, y: sy, scale: focal / depth, depth };
+    };
 
-    // grass texture: subtle radial vignette tied to camera so it doesn't feel infinite-flat
-    c.fillStyle = '#0f1a14';
-    c.beginPath();
-    c.arc(cam.x, cam.y, 1800, 0, Math.PI * 2);
-    c.fill();
+    // ---- Road ribbon ----
+    // Build per-sample left/right projected edges in along-road order (far->near),
+    // then draw adjacent pairs as filled trapezoids. Iterating in natural order
+    // (rather than depth-sorting) avoids spurious cross-chunk pairings when the
+    // road curves sharply.
+    type Edge = { l: Projected; r: Projected } | null;
+    const edges: Edge[] = [];
+    // Far end first: walk chunks from newest (furthest) back to oldest. Within
+    // each chunk, walk samples from end-of-chunk back to start. Skip the seam
+    // sample (samples[0]) on all chunks but the very first to avoid duplicates.
+    for (let ci = world.chunks.length - 1; ci >= 0; ci--) {
+      const chunk = world.chunks[ci];
+      const startIdx = ci === 0 ? 0 : 1;
+      for (let si = chunk.samples.length - 1; si >= startIdx; si--) {
+        const s = chunk.samples[si];
+        const l = project(s.x - s.nx * ROAD_HALF_WIDTH, s.y - s.ny * ROAD_HALF_WIDTH);
+        const r = project(s.x + s.nx * ROAD_HALF_WIDTH, s.y + s.ny * ROAD_HALF_WIDTH);
+        edges.push(l && r ? { l, r } : null);
+      }
+    }
 
-    // Road: draw thick polyline (dark asphalt) + dashed centerline
-    for (const chunk of world.chunks) {
-      c.strokeStyle = '#1a2230';
-      c.lineWidth = ROAD_HALF_WIDTH * 2;
-      c.lineCap = 'butt';
-      c.lineJoin = 'round';
+    for (let i = 0; i < edges.length - 1; i++) {
+      const far = edges[i];
+      const near = edges[i + 1];
+      if (!far || !near) continue;
+
+      // asphalt fill
+      c.fillStyle = depthShade('#2b3548', '#11161f', near.l.depth, cam.farPlane);
       c.beginPath();
-      const s0 = chunk.samples[0];
-      c.moveTo(s0.x, s0.y);
-      for (let i = 1; i < chunk.samples.length; i++) {
-        c.lineTo(chunk.samples[i].x, chunk.samples[i].y);
-      }
-      c.stroke();
+      c.moveTo(far.l.x, far.l.y);
+      c.lineTo(far.r.x, far.r.y);
+      c.lineTo(near.r.x, near.r.y);
+      c.lineTo(near.l.x, near.l.y);
+      c.closePath();
+      c.fill();
 
-      // shoulders
-      c.strokeStyle = '#27313f';
-      c.lineWidth = 6;
-      c.setLineDash([]);
-      for (const sign of [-1, 1]) {
-        c.beginPath();
-        for (let i = 0; i < chunk.samples.length; i++) {
-          const s = chunk.samples[i];
-          const x = s.x + s.nx * sign * (ROAD_HALF_WIDTH - 3);
-          const y = s.y + s.ny * sign * (ROAD_HALF_WIDTH - 3);
-          if (i === 0) c.moveTo(x, y); else c.lineTo(x, y);
-        }
-        c.stroke();
-      }
+      // shoulder stripes (alternating white/red rumble) on a depth-based phase
+      const stripeOn = (Math.floor(near.l.depth / 22) & 1) === 0;
+      c.fillStyle = stripeOn ? '#e8e8e8' : '#c83a3a';
+      strip(c, far.l, near.l, far.r, near.r, 0.97, 1.0);
+      strip(c, far.l, near.l, far.r, near.r, 0.0, 0.03);
 
-      // dashed centerline
-      c.strokeStyle = '#3a4658';
-      c.setLineDash([20, 18]);
-      c.lineWidth = 3;
-      c.beginPath();
-      c.moveTo(s0.x, s0.y);
-      for (let i = 1; i < chunk.samples.length; i++) {
-        c.lineTo(chunk.samples[i].x, chunk.samples[i].y);
+      // dashed centerline (only on the "on" segments)
+      if (stripeOn) {
+        c.fillStyle = '#dfe5ee';
+        strip(c, far.l, near.l, far.r, near.r, 0.49, 0.51);
       }
-      c.stroke();
-      c.setLineDash([]);
     }
 
-    // pickups
+    // ---- Obstacles (logs) ----
+    // Drawn ground-aligned: project center; size width by lateral half-width,
+    // height by the sprite's aspect at that depth.
+    const logCv = getLogSprite();
+    const obstacleDraws: { p: Projected; halfWidth: number; halfLength: number }[] = [];
     for (const chunk of world.chunks) {
-      for (const p of chunk.pickups) {
-        if (p.taken) continue;
-        const t = (performance.now() / 1000) + p.t0;
-        const wob = 1 + Math.sin(t * 4) * 0.06;
-        const r = PICKUP_RADIUS[p.kind] * wob;
-        c.fillStyle = PICKUP_COLORS[p.kind];
-        c.beginPath();
-        c.arc(p.x, p.y, r, 0, Math.PI * 2);
-        c.fill();
-        c.strokeStyle = 'rgba(0,0,0,0.45)';
-        c.lineWidth = 1.5;
-        c.stroke();
-        if (p.kind !== 'bolt') {
-          // small inner ring marks rare ingredients
-          c.beginPath();
-          c.arc(p.x, p.y, r * 0.5, 0, Math.PI * 2);
-          c.strokeStyle = 'rgba(255,255,255,0.7)';
-          c.lineWidth = 1.5;
-          c.stroke();
-        }
+      for (const o of chunk.obstacles) {
+        const p = project(o.x, o.y);
+        if (p) obstacleDraws.push({ p, halfWidth: o.halfWidth, halfLength: o.halfLength });
       }
     }
-
-    // skid marks under car when sliding
-    const slip = Math.abs(car.slipAngle());
-    if (slip > 0.2 && car.fwdSpeed > 80) {
-      c.fillStyle = `rgba(0,0,0,${Math.min(0.4, slip * 0.5)})`;
-      const back = -10;
-      const bx = car.x + Math.cos(car.heading) * back;
-      const by = car.y + Math.sin(car.heading) * back;
-      for (const sign of [-1, 1]) {
-        const px = bx - Math.sin(car.heading) * 6 * sign;
-        const py = by + Math.cos(car.heading) * 6 * sign;
-        c.beginPath();
-        c.arc(px, py, 2.5, 0, Math.PI * 2);
-        c.fill();
-      }
+    obstacleDraws.sort((a, b) => b.p.depth - a.p.depth);
+    for (const od of obstacleDraws) {
+      const screenWidth = od.halfWidth * 2 * od.p.scale;
+      const screenHeight = (logCv.height / logCv.width) * screenWidth;
+      const cwn = this.ctx;
+      const prev = cwn.imageSmoothingEnabled;
+      cwn.imageSmoothingEnabled = true;
+      cwn.drawImage(
+        logCv,
+        od.p.x - screenWidth / 2,
+        od.p.y - screenHeight * 0.55,
+        screenWidth,
+        screenHeight,
+      );
+      cwn.imageSmoothingEnabled = prev;
     }
 
-    // car
-    drawCarSprite(c, car.x, car.y, car.heading, skin as CarSkin);
-    c.restore();
+    // ---- Ducks (pickups) ----
+    const duckCv = getDuckSprite();
+    const duckDraws: { p: Projected; t0: number; isIngredient: boolean; tint: string | null }[] = [];
+    for (const chunk of world.chunks) {
+      for (const pk of chunk.pickups) {
+        if (pk.taken) continue;
+        const p = project(pk.x, pk.y);
+        if (!p) continue;
+        duckDraws.push({
+          p,
+          t0: pk.t0,
+          isIngredient: pk.kind !== 'bolt',
+          tint: pk.kind === 'bolt' ? null : INGREDIENT_TINT[pk.kind],
+        });
+      }
+    }
+    duckDraws.sort((a, b) => b.p.depth - a.p.depth);
+    const tNow = performance.now() / 1000;
+    for (const d of duckDraws) {
+      const bob = Math.sin(tNow * 4 + d.t0) * 0.5;
+      const baseSize = d.isIngredient ? 28 : 22;
+      const w = baseSize * d.p.scale;
+      const h = (duckCv.height / duckCv.width) * w;
+      c.save();
+      c.translate(d.p.x, d.p.y - h * 0.5 - bob * d.p.scale);
+      if (d.tint) {
+        // ingredient: render the duck with a color overlay halo so rares are
+        // visually distinct from common yellow ducks.
+        c.shadowColor = d.tint;
+        c.shadowBlur = 12 * d.p.scale;
+      }
+      c.drawImage(duckCv, -w / 2, -h / 2, w, h);
+      c.restore();
+    }
+
+    // ---- Player car ----
+    // The car is always near (cx, ~82% screen height) thanks to the chase
+    // camera, but we still project so lateral drift moves it on screen.
+    const carP = project(car.x, car.y);
+    if (carP) {
+      c.save();
+      c.translate(carP.x, carP.y);
+      // Sprite is authored with +x = nose. We want screen "up" (=ahead) when
+      // car heading matches camera angle. So rotate -PI/2 + (heading - angle).
+      const yaw = car.heading - cam.angle;
+      c.rotate(yaw - Math.PI / 2);
+      const carScale = carP.scale * 0.65;
+      c.scale(carScale, carScale);
+      drawCarSprite(c, 0, 0, 0, skin as CarSkin);
+      c.restore();
+    }
   }
 }
+
+// Quad-strip helper: fill a sub-strip between fractional positions u0..u1
+// across two trapezoid edges (far->near).
+function strip(
+  c: CanvasRenderingContext2D,
+  fl: Projected, nl: Projected, fr: Projected, nr: Projected,
+  u0: number, u1: number,
+) {
+  const lerp = (a: Projected, b: Projected, t: number) => ({
+    x: a.x + (b.x - a.x) * t,
+    y: a.y + (b.y - a.y) * t,
+  });
+  const a = lerp(fl, fr, u0);
+  const b = lerp(fl, fr, u1);
+  const d = lerp(nl, nr, u1);
+  const e = lerp(nl, nr, u0);
+  c.beginPath();
+  c.moveTo(a.x, a.y);
+  c.lineTo(b.x, b.y);
+  c.lineTo(d.x, d.y);
+  c.lineTo(e.x, e.y);
+  c.closePath();
+  c.fill();
+}
+
+// Blend two hex colors based on how close to the far plane we are; gives
+// distant road a hazier feel without a separate fog pass.
+function depthShade(near: string, far: string, depth: number, farPlane: number): string {
+  const t = Math.max(0, Math.min(1, depth / farPlane));
+  const a = hex(near), b = hex(far);
+  const r = Math.round(a[0] + (b[0] - a[0]) * t);
+  const g = Math.round(a[1] + (b[1] - a[1]) * t);
+  const bl = Math.round(a[2] + (b[2] - a[2]) * t);
+  return `rgb(${r},${g},${bl})`;
+}
+function hex(s: string): [number, number, number] {
+  const h = s.replace('#', '');
+  const n = parseInt(h, 16);
+  return [(n >> 16) & 255, (n >> 8) & 255, n & 255];
+}
+
+const INGREDIENT_TINT: Record<string, string> = {
+  neon: '#39ff88',
+  chrome: '#cfd6dd',
+  glitter: '#ff7ad9',
+  ember: '#ff6a3d',
+  prism: '#7ad7ff',
+};
