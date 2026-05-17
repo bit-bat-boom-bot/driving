@@ -1,0 +1,27 @@
+{
+  "name": "drift-runner",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc -b && vite build",
+    "preview": "vite preview --host",
+    "cap:sync": "npm run build && cap sync android",
+    "cap:open": "cap open android",
+    "android:build": "npm run cap:sync && cd android && ./gradlew assembleDebug",
+    "android:run": "npm run cap:sync && cap run android"
+  },
+  "dependencies": {
+    "@capacitor-community/admob": "^7.0.3",
+    "@capacitor/android": "^7.0.0",
+    "@capacitor/app": "^7.0.0",
+    "@capacitor/core": "^7.0.0",
+    "@capacitor/preferences": "^7.0.0"
+  },
+  "devDependencies": {
+    "@capacitor/cli": "^7.0.0",
+    "typescript": "^5.6.3",
+    "vite": "^6.0.7"
+  }
+}

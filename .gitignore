@@ -1,0 +1,25 @@
+node_modules/
+dist/
+tsconfig.tsbuildinfo
+.DS_Store
+*.log
+.env
+.env.*
+
+# Capacitor sync output (regenerated)
+android/app/src/main/assets/public/
+android/app/src/main/assets/capacitor.config.json
+android/app/src/main/assets/capacitor.plugins.json
+
+# Android build output
+android/.gradle/
+android/.idea/
+android/local.properties
+android/build/
+android/app/build/
+android/captures/
+android/app/release/
+android/app/debug/
+*.iml
+*.keystore
+!debug.keystore
