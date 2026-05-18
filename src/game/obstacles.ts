@@ -17,11 +17,12 @@ const HALF_WIDTH = 38;   // logs span a bit less than half the road
 const HALF_LENGTH = 9;
 
 export function spawnObstaclesForChunk(chunk: Chunk, r: RNG) {
-  // First couple chunks are clear so the player gets a clean ramp-up.
-  if (chunk.id < 3) return;
-  // 1-2 logs per chunk on average. Placed at random parametric positions,
-  // offset to one side or the other so there's always a gap to thread.
-  const count = r() < 0.55 ? 1 : 2;
+  // First few chunks are clear so the player gets a clean ramp-up.
+  if (chunk.id < 5) return;
+  // Mostly 1 log per chunk; occasional double for variety. Placed at random
+  // parametric positions, offset to one side or the other so there's always
+  // a gap to thread.
+  const count = r() < 0.8 ? 1 : 2;
   const used: number[] = [];
   for (let i = 0; i < count; i++) {
     // pick t in [0.15, 0.95] avoiding chunk seams

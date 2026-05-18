@@ -4,6 +4,7 @@ import { adService } from './ads/admob';
 const canvas = document.getElementById('game') as HTMLCanvasElement;
 const game = new Game(canvas);
 game.start();
+(window as unknown as { game: Game }).game = game;
 
 // Fire-and-forget; ad init is async and the game must run regardless.
 adService.init().catch((e) => console.warn('ads init failed', e));

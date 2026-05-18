@@ -119,7 +119,7 @@ export class Game {
 
   private updatePlaying(dt: number) {
     this.car.steer = this.input.steer;
-    this.world.ensureAhead(this.car.x, this.car.y, 4);
+    this.world.ensureAhead(this.car.x, this.car.y, 6);
 
     // road detection
     const cp = this.world.closestOnRoad(this.car.x, this.car.y);
@@ -155,6 +155,7 @@ export class Game {
 
     // obstacle collision: convert each log's world-space center into the
     // car's local frame so the box check is along/across the road, not axis-aligned.
+    // Tight bounds (no buffer) — the visible sprite IS the hit box.
     for (const chunk of this.world.chunks) {
       for (const o of chunk.obstacles) {
         const dx = o.x - this.car.x;
@@ -162,8 +163,9 @@ export class Game {
         const ch = Math.cos(this.car.heading), sh = Math.sin(this.car.heading);
         const along = dx * ch + dy * sh;
         const across = -dx * sh + dy * ch;
-        // Inflate by car half-extents (~13 long, ~10 wide).
-        if (Math.abs(along) < o.halfLength + 13 && Math.abs(across) < o.halfWidth + 10) {
+        // Car half-extents ~10 long, ~8 wide (slightly smaller than the sprite
+        // so a near-miss visually reads as a near-miss, not a collision).
+        if (Math.abs(along) < o.halfLength + 10 && Math.abs(across) < o.halfWidth + 8) {
           this.endRun('hit-log');
           break;
         }
@@ -181,8 +183,10 @@ export class Game {
     else this.runIngredients[kind] += 1;
   }
 
-  endRun(_reason: string) {
+  lastDeathReason = '';
+  endRun(reason: string) {
     if (this.scene !== 'playing') return;
+    this.lastDeathReason = reason;
     this.car.alive = false;
     this.scene = 'gameover';
     // bank currency

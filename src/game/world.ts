@@ -70,10 +70,11 @@ export class World {
     samples.push(prev);
     const stepLen = CHUNK_LEN / CHUNK_SAMPLES;
     for (let i = 1; i <= CHUNK_SAMPLES; i++) {
-      // Smooth random curvature (1D random walk, bounded).
-      this.curveState += (this.rng() - 0.5) * 0.08;
-      this.curveState *= 0.92;
-      this.headHeading += this.curveState * 0.6;
+      // Smooth random curvature (1D random walk, bounded). Tightness tuned so
+      // the road never bends faster than the car can comfortably track at top speed.
+      this.curveState += (this.rng() - 0.5) * 0.05;
+      this.curveState *= 0.9;
+      this.headHeading += this.curveState * 0.35;
       this.headX += Math.cos(this.headHeading) * stepLen;
       this.headY += Math.sin(this.headHeading) * stepLen;
       samples.push(this.makeSample(this.headX, this.headY, this.headHeading));

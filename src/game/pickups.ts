@@ -28,8 +28,9 @@ const INGREDIENT_RATES: Record<IngredientKind, number> = {
 };
 
 export function spawnPickupsForChunk(chunk: Chunk, r: RNG) {
-  // ~6-10 bolts per chunk, occasional ingredient.
-  const count = 6 + Math.floor(r() * 5);
+  // ~2-4 pickups per chunk, occasional ingredient. (Sparse so they read as
+  // "rewards on the path" rather than wallpaper.)
+  const count = 2 + Math.floor(r() * 3);
   for (let i = 0; i < count; i++) {
     // pick a parametric position along the chunk's centerline
     const t = (i + r()) / count;
